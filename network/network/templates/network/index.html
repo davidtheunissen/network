@@ -1,0 +1,163 @@
+{% extends "network/layout.html" %}
+
+{% block body %}
+    <!-- Page header -->
+    <div class="row my-4">
+        <h1>All Posts</h1>
+    </div>
+
+    <!-- New post form -->
+    {% if user.is_authenticated %}
+        <div class="row">
+            <h4>Write a New Post</h4>
+            <form action="{% url 'new_post' %}" method="post">
+                {% csrf_token %}
+                <textarea name="content" row="4" cols="130"></textarea>
+                <br/>
+                <input type="submit" value="Post" class="btn btn-primary">
+            </form>
+        </div>
+    {% endif %}
+
+    <br/>
+
+    <!-- List of posts -->
+    {% for post in page_posts %}
+        <div class="row justify-content-center">
+            <div class="card" style="width: 70rem">
+                <div class="card-body"></div>
+                    <h5 class="card-title"><a href="{% url 'profile' user_id=post.user.id %}">@{{ post.user }}</a></h5>
+                    <h6 class="card-subtitle" id="content_{{ post.id }}">Posted on {{ post.date }}</h6>
+                    <p class="card-text"> {{ post.content }}</p>
+
+                    <!-- Like/edit logic -->
+                    {% if user.is_authenticated %}
+                        {% if user == post.user %}
+                            <!-- Edit button -->
+                            <div>
+                                <button class="btn btn-primary" data-toggle="modal" data-target="#edit_modal_{{ post.id }}">
+                                    Edit Post
+                                </button>
+                            </div>
+                            
+                            <!-- Edit modal -->
+                            <div class="modal fade" id="edit_modal_{{ post.id }}" tabindex="-1" role="dialog" aria-labelledby="edit_modal_{{ post.id }}" aria-hidden="true">
+                                <div class="modal-dialog" role="document">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title" id="edit_title">{{ post.user }}</h5>
+                                        </div>
+            
+                                        <div class="modal-body">
+                                            <textarea rows="5" id="textarea_{{ post.id }}" class="form-control" name="content">{{ post.content }}</textarea>
+                                        </div>
+            
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                                            <button type="button" class="btn btn-primary" onclick="submitHandler('{{ post.id }}')">Save changes</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        {% else %}
+                                {% if post.id in youLiked %}
+                                    <div>
+                                        <button class="btn btn-info col-1" onclick="likeHandler({{ post.id }}, {{ youLiked }})" id="{{ post.id }}">
+                                            <i class="bi bi-heart"></i>
+                                        </button>
+                                    </div>
+                                {% else %}
+                                    <div>
+                                        <button class="btn btn-info col-1" onclick="likeHandler({{ post.id }}, {{ youLiked }})" id="{{ post.id }}">
+                                            <i class="bi bi-heart-fill"></i>
+                                        </button>
+                                    </div>
+                                {% endif %}
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    {% endfor %}
+
+<br/>
+
+<nav>
+    <ul class="pagination justify-content-center">
+        {% if page_posts.has_previous %}
+            <li class="page-item"><a class="page-link" href="?page={{ page_posts.previous_page_number }}">Previous</a></li>
+        {% endif %}
+
+        {% if page_posts.has_next %}
+            <li class="page-item"><a class="page-link" href="?page={{ page_posts.next_page_number }}">Next</a></li>
+        {% endif %}
+    </ul>
+</nav>
+
+
+<script>
+    function getCookie(name){
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length ==2) return parts.pop().split(';').shift();
+    }
+
+    function submitHandler(id){
+        const textareaValue = document.getElementById(`textarea_${id}`).value;
+        const content = document.getElementById(`content_${id}`);
+        const modal = document.getElementById(`modal_edit_post_${id}`);
+        fetch(`/edit/${id}`, {
+            method: "POST",
+            headers: {"Content-type": "application/json", "X-CSRFToken": getCookie("csrftoken")},
+            body: JSON.stringify({
+                content: textareaValue
+            })
+        })
+        .then(response => response.json())
+        .then(result => {
+            content.innerHTML = result.data;
+
+            modal.classList.remove('show');
+            modal.setAttribute('aria-hidden', 'true');
+            modal.setAttribute('style', 'display: none');
+
+            const modalsBackdrops = document.getElementsByClassName('modal-backdrop');
+
+            for (let i=0; i<modalsBackdrops.length; i++) {
+                document.body.removeChild(modalsBackdrops[i]);
+            }
+        })
+    }
+
+    function likeHandler(id, youLiked){
+        const btn = document.getElementById(`${id}`);
+
+        let liked = youLiked.indexOf(id) <= 0;
+
+        console.log('ID:', id);
+        console.log('youLiked:', youLiked);
+        console.log('Initial liked state:', liked);
+
+        btn.classList.remove('bi', 'bi-heart-fill');
+        btn.classList.remove('bi', 'bi-heart');
+
+        if (liked === true) {
+            fetch(`/remove_like/${id}`)
+            .then(response => response.json())
+            .then(data => {
+                btn.classList.add('bi', 'bi-heart');
+                liked = !liked;
+            });
+        } else {
+            fetch(`/add_like/${id}`)
+            .then(response => response.json())
+            .then(data => {
+                btn.classList.add('bi', 'bi-heart-fill');
+                liked = !liked;
+            });
+        }
+    }
+</script>
+
+
+{% endblock %}
